@@ -31,17 +31,30 @@ class MeshWriter(object):
   def write_body_(self, mesh, out):
     if self.compression_method == CompressionMethod.RAW:
       self.write_body_raw_(mesh, out)
+    # TODO: support other compression methods
 
   def write_body_raw_(self, mesh, out):
     out.write(b'INDX')
     for index in mesh.indexes:
-      out.write(struct.pack('I', index))
+      out.write(struct.pack('i', index))
 
     out.write(b'VERT')
     for vertex in mesh.vertices:
       out.write(struct.pack('f', vertex[0]))
       out.write(struct.pack('f', vertex[1]))
       out.write(struct.pack('f', vertex[2]))
+
+    # Normals are optional, therefore check if there is any
+    if mesh.normals:
+      out.write(b'NORM')
+      for normal in mesh.normals:
+        out.write(struct.pack('f', normal[0]))
+        out.write(struct.pack('f', normal[1]))
+        out.write(struct.pack('f', normal[2]))
+
+    # TODO: write normals
+    # TODO: write UV maps
+    # TODO: write attribute maps
 
   def write_string_(self, string, out):
     encoded = string.encode('utf-8')

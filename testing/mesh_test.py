@@ -22,6 +22,12 @@ VERTICES = [
   [3.3, 3.4, 3.5],
 ]
 INDEXES = [0, 1, 2, 1, 2, 3]
+NORMALS = [
+  [1.0, 0.0, 0.0],
+  [0.0, 1.0, 0.0],
+  [0.0, 0.0, 1.0],
+  [0.4, -0.7, 0.5],
+]
 UV = [
   [0.0, 0.0],
   [0.1, 0.1],
@@ -37,7 +43,7 @@ class MeshTest(unittest.TestCase):
 
 
   def testWritesHeader(self):
-    test_mesh = mesh.Mesh(VERTICES, INDEXES, UV, ATTRIBUTES)
+    test_mesh = mesh.Mesh(VERTICES, INDEXES, uv=UV, attributes=ATTRIBUTES)
     writer = mesh_writer.MeshWriter(mesh_writer.CompressionMethod.RAW)
     out = io.BytesIO()
 
@@ -46,7 +52,7 @@ class MeshTest(unittest.TestCase):
     out.close()
 
     # self.assertEqual(len(value), 36)
-    self.assertEqual(value[:4], b'OCTM')  # magic id
+    self.assertEqual(read_int(value, 0), 0x4d54434f)  # 'OCTM' in ASCII
     self.assertEqual(read_int(value, 4), 5)  # version
     self.assertEqual(read_int(value, 8), 0x00574152)  # compression method
     self.assertEqual(read_int(value, 12), 4)  # vertex count
@@ -65,7 +71,7 @@ class MeshTest(unittest.TestCase):
     value = out.getvalue()
     out.close()
 
-    self.assertEqual(value[:4], b'OCTM')  # magic id
+    self.assertEqual(read_int(value, 0), 0x4d54434f)  # 'OCTM' in ASCII
     self.assertEqual(read_int(value, 4), 5)  # version
     self.assertEqual(read_int(value, 8), 0x00574152)  # compression method
     self.assertEqual(read_int(value, 12), 4)  # vertex count
@@ -85,15 +91,15 @@ class MeshTest(unittest.TestCase):
     value = out.getvalue()
     out.close()
 
-    self.assertEqual(value[body_index:body_index+4], b'INDX')
-    self.assertEqual(read_int(value, body_index + 4), 0)
-    self.assertEqual(read_int(value, body_index + 8), 1)
-    self.assertEqual(read_int(value, body_index + 12), 2)
-    self.assertEqual(read_int(value, body_index + 16), 1)
-    self.assertEqual(read_int(value, body_index + 20), 2)
-    self.assertEqual(read_int(value, body_index + 24), 3)
+    self.assertEqual(read_int(value, body_index), 0x58444e49)  # 'INDX'
+    self.assertEqual(read_int(value, body_index + 4), INDEXES[0])
+    self.assertEqual(read_int(value, body_index + 8), INDEXES[1])
+    self.assertEqual(read_int(value, body_index + 12), INDEXES[2])
+    self.assertEqual(read_int(value, body_index + 16), INDEXES[3])
+    self.assertEqual(read_int(value, body_index + 20), INDEXES[4])
+    self.assertEqual(read_int(value, body_index + 24), INDEXES[5])
 
-    self.assertEqual(value[body_index+28:body_index+32], b'VERT')
+    self.assertEqual(read_int(value, body_index + 28), 0x54524556)  # 'VERT'
     self.assertAlmostEqual(read_float(value, body_index + 32), 0.0, places=1)
     self.assertAlmostEqual(read_float(value, body_index + 36), 0.1, places=1)
     self.assertAlmostEqual(read_float(value, body_index + 40), 0.2, places=1)
@@ -110,7 +116,33 @@ class MeshTest(unittest.TestCase):
     self.assertAlmostEqual(read_float(value, body_index + 72), 3.4, places=1)
     self.assertAlmostEqual(read_float(value, body_index + 76), 3.5, places=1)
 
-    self.assertIsNotNone(value)
+  def testWritesBodyWithNormals(self):
+    test_mesh = mesh.Mesh(VERTICES, INDEXES, normals=NORMALS)
+    writer = mesh_writer.MeshWriter(mesh_writer.CompressionMethod.RAW)
+    out = io.BytesIO()
+    normal_index = 36 + 0 + 80  # 36 (header) + comment length + 80 (body up to vertices)
+
+    writer.write(test_mesh, out)
+    value = out.getvalue()
+    out.close()
+
+    self.assertEqual(read_int(value, normal_index), 0x4d524f4e)  # 'NORM'
+    self.assertAlmostEqual(read_float(value, normal_index + 4), NORMALS[0][0], places=1)
+    self.assertAlmostEqual(read_float(value, normal_index + 8), NORMALS[0][1], places=1)
+    self.assertAlmostEqual(read_float(value, normal_index + 12), NORMALS[0][2], places=1)
+
+    self.assertAlmostEqual(read_float(value, normal_index + 16), NORMALS[1][0], places=1)
+    self.assertAlmostEqual(read_float(value, normal_index + 20), NORMALS[1][1], places=1)
+    self.assertAlmostEqual(read_float(value, normal_index + 24), NORMALS[1][2], places=1)
+
+    self.assertAlmostEqual(read_float(value, normal_index + 28), NORMALS[2][0], places=1)
+    self.assertAlmostEqual(read_float(value, normal_index + 32), NORMALS[2][1], places=1)
+    self.assertAlmostEqual(read_float(value, normal_index + 36), NORMALS[2][2], places=1)
+
+    self.assertAlmostEqual(read_float(value, normal_index + 40), NORMALS[3][0], places=1)
+    self.assertAlmostEqual(read_float(value, normal_index + 44), NORMALS[3][1], places=1)
+    self.assertAlmostEqual(read_float(value, normal_index + 48), NORMALS[3][2], places=1)
+
 
 
 if __name__ == '__main__':
