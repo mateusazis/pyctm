@@ -23,7 +23,7 @@ class MeshWriter(object):
     out.write(struct.pack('i', len(mesh.vertices)))
     out.write(struct.pack('i', len(mesh.indexes) // 3))
     out.write(struct.pack('i', 0 if not mesh.uv_maps else len(mesh.uv_maps)))
-    out.write(struct.pack('i', len(mesh.attributes)))
+    out.write(struct.pack('i', len(mesh.attribute_maps)))
     boolean_flags = 0
     out.write(struct.pack('i', boolean_flags))
     self.write_string_(mesh.comments, out)
@@ -63,7 +63,13 @@ class MeshWriter(object):
           out.write(struct.pack('f', uv[0]))
           out.write(struct.pack('f', uv[1]))
 
-    # TODO: write attribute maps
+    if mesh.attribute_maps:
+      for attribute_map in mesh.attribute_maps:
+        out.write(b'ATTR')
+        self.write_string_(attribute_map.name, out)
+        for vertex_value in attribute_map.values:
+          out.write(struct.pack('f', vertex_value[0]))
+          out.write(struct.pack('f', vertex_value[1]))
 
   def write_string_(self, string, out):
     encoded = string.encode('utf-8')
