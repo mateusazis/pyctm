@@ -22,7 +22,7 @@ class MeshWriter(object):
     out.write(struct.pack('i', CompressionMethod.RAW))
     out.write(struct.pack('i', len(mesh.vertices)))
     out.write(struct.pack('i', len(mesh.indexes) // 3))
-    out.write(struct.pack('i', 0 if not mesh.uv else len(mesh.uv)))
+    out.write(struct.pack('i', 0 if not mesh.uv_maps else len(mesh.uv_maps)))
     out.write(struct.pack('i', len(mesh.attributes)))
     boolean_flags = 0
     out.write(struct.pack('i', boolean_flags))
@@ -31,7 +31,9 @@ class MeshWriter(object):
   def write_body_(self, mesh, out):
     if self.compression_method == CompressionMethod.RAW:
       self.write_body_raw_(mesh, out)
-    # TODO: support other compression methods
+    else:
+      # TODO: support other compression methods
+      raise Exception('Compression method not implemented yet')
 
   def write_body_raw_(self, mesh, out):
     out.write(b'INDX')
@@ -52,8 +54,15 @@ class MeshWriter(object):
         out.write(struct.pack('f', normal[1]))
         out.write(struct.pack('f', normal[2]))
 
-    # TODO: write normals
-    # TODO: write UV maps
+    if mesh.uv_maps:
+      for uv_map in mesh.uv_maps:
+        out.write(b'TEXC')
+        self.write_string_(uv_map.name, out)
+        self.write_string_(uv_map.texture_file_name, out)
+        for uv in uv_map.coords:
+          out.write(struct.pack('f', uv[0]))
+          out.write(struct.pack('f', uv[1]))
+
     # TODO: write attribute maps
 
   def write_string_(self, string, out):

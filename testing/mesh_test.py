@@ -5,6 +5,7 @@ import sys
 sys.path.append('/Users/azis/pyctm')
 
 from pyctm import mesh
+from pyctm import uv_map
 from pyctm import mesh_writer
 
 
@@ -13,6 +14,9 @@ def read_int(bytestring, index):
 
 def read_float(bytestring, index):
   return struct.unpack('f', bytestring[index:index+4])[0]
+
+def read_string(bytestring, index, size):
+  return bytestring[index:index+size].decode('ASCII')
 
 
 VERTICES = [
@@ -28,11 +32,22 @@ NORMALS = [
   [0.0, 0.0, 1.0],
   [0.4, -0.7, 0.5],
 ]
-UV = [
-  [0.0, 0.0],
-  [0.1, 0.1],
-  [0.2, 0.2],
-  [0.3, 0.3],
+
+COORDS_UV_MAP_0  = [
+    [0.0, 0.0],
+    [0.1, 0.1],
+    [0.2, 0.2],
+    [0.3, 0.3],
+]
+COORDS_UV_MAP_1  = [
+    [0.1, 0.5],
+    [0.3, 0.2],
+    [-0.7, 0.3],
+    [0.4, 0.3],
+]
+UV_MAPS = [
+  uv_map.UvMap(coords=COORDS_UV_MAP_0, name='map_0', texture_file_name='tex0.png'),
+  uv_map.UvMap(coords=COORDS_UV_MAP_1, name='another_map', texture_file_name='t1.png'),
 ]
 ATTRIBUTES = [
   [1, 2, 3, 4]
@@ -43,7 +58,7 @@ class MeshTest(unittest.TestCase):
 
 
   def testWritesHeader(self):
-    test_mesh = mesh.Mesh(VERTICES, INDEXES, uv=UV, attributes=ATTRIBUTES)
+    test_mesh = mesh.Mesh(VERTICES, INDEXES, uv_maps=UV_MAPS, attributes=ATTRIBUTES)
     writer = mesh_writer.MeshWriter(mesh_writer.CompressionMethod.RAW)
     out = io.BytesIO()
 
@@ -57,7 +72,7 @@ class MeshTest(unittest.TestCase):
     self.assertEqual(read_int(value, 8), 0x00574152)  # compression method
     self.assertEqual(read_int(value, 12), 4)  # vertex count
     self.assertEqual(read_int(value, 16), 2)  # triangle count
-    self.assertEqual(read_int(value, 20), 4)  # UV map count
+    self.assertEqual(read_int(value, 20), 2)  # UV map count
     self.assertEqual(read_int(value, 24), 1)  # attribute map count
     self.assertEqual(read_int(value, 28), 0)  # boolean flags
     self.assertEqual(read_int(value, 32), 0)  # comment length
@@ -127,7 +142,6 @@ class MeshTest(unittest.TestCase):
     out.close()
 
     self.assertEqual(read_int(value, normal_index), 0x4d524f4e)  # 'NORM'
-    self.assertAlmostEqual(read_float(value, normal_index + 4), NORMALS[0][0], places=1)
     self.assertAlmostEqual(read_float(value, normal_index + 8), NORMALS[0][1], places=1)
     self.assertAlmostEqual(read_float(value, normal_index + 12), NORMALS[0][2], places=1)
 
@@ -142,6 +156,44 @@ class MeshTest(unittest.TestCase):
     self.assertAlmostEqual(read_float(value, normal_index + 40), NORMALS[3][0], places=1)
     self.assertAlmostEqual(read_float(value, normal_index + 44), NORMALS[3][1], places=1)
     self.assertAlmostEqual(read_float(value, normal_index + 48), NORMALS[3][2], places=1)
+
+  def testWritesBodyWithUV(self):
+    test_mesh = mesh.Mesh(VERTICES, INDEXES, uv_maps=UV_MAPS)
+    writer = mesh_writer.MeshWriter(mesh_writer.CompressionMethod.RAW)
+    out = io.BytesIO()
+    uv_index = 36 + 0 + 80  # 36 (header) + comment length + 80 (body up to vertices)
+
+    writer.write(test_mesh, out)
+    value = out.getvalue()
+    out.close()
+
+    self.assertEqual(read_int(value, uv_index), 0x43584554)  # 'TEXC'
+    self.assertEqual(read_int(value, uv_index + 4), 5) # length of 'map_0'
+    self.assertEqual(read_string(value, uv_index + 8, 5), 'map_0')
+    self.assertEqual(read_int(value, uv_index + 13), 8) # length of 'tex0.png'
+    self.assertEqual(read_string(value, uv_index + 17, 8), 'tex0.png')
+    self.assertAlmostEqual(read_float(value, uv_index + 25), COORDS_UV_MAP_0[0][0], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 29), COORDS_UV_MAP_0[0][1], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 33), COORDS_UV_MAP_0[1][0], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 37), COORDS_UV_MAP_0[1][1], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 41), COORDS_UV_MAP_0[2][0], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 45), COORDS_UV_MAP_0[2][1], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 49), COORDS_UV_MAP_0[3][0], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 53), COORDS_UV_MAP_0[3][1], places=1)
+
+    self.assertEqual(read_int(value, uv_index + 57), 0x43584554)  # 'TEXC'
+    self.assertEqual(read_int(value, uv_index + 61), 11) # length of 'another_map'
+    self.assertEqual(read_string(value, uv_index + 65, 11), 'another_map')
+    self.assertEqual(read_int(value, uv_index + 76), 6) # length of 't1.png'
+    self.assertEqual(read_string(value, uv_index + 80, 6), 't1.png')
+    self.assertAlmostEqual(read_float(value, uv_index + 86), COORDS_UV_MAP_1[0][0], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 90), COORDS_UV_MAP_1[0][1], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 94), COORDS_UV_MAP_1[1][0], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 98), COORDS_UV_MAP_1[1][1], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 102), COORDS_UV_MAP_1[2][0], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 106), COORDS_UV_MAP_1[2][1], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 110), COORDS_UV_MAP_1[3][0], places=1)
+    self.assertAlmostEqual(read_float(value, uv_index + 114), COORDS_UV_MAP_1[3][1], places=1)
 
 
 
