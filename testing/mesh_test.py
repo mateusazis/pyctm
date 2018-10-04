@@ -2,7 +2,6 @@ import io
 import unittest
 import struct
 import sys
-sys.path.append('/Users/azis/pyctm')
 
 from pyctm import mesh
 from pyctm import uv_map
